@@ -1,0 +1,69 @@
+services:
+  # Banco de dados para o Keycloak
+  postgres:
+    image: postgres:15
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    command: start --http-enabled=true
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: api.paulosilveriomartins.com.br
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_STRICT: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  # NOVO: Serviço de Cache Distribuído
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # Node.js Express
+  backend:
+    build: ./backend
+    container_name: node-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/usr/src/app
+    environment:
+      - KEYCLOAK_URL=http://keycloak:8080
+      - REDIS_URL=redis://redis:6379 # O backend encontra o Redis pelo nome do container
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - keycloak
+      - redis
+
+  # React Frontend
+  frontend:
+    build: ./frontend
+    container_name: react-app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  pgdata:
+  redisdata: # Volume para persistência do Redis
