@@ -1,29 +1,26 @@
 import axios from "axios";
-import keycloak from "../config/keycloak";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+  // OBRIGATÓRIO NA NOVA ARQUITETURA:
+  // Diz ao navegador para anexar o cookie HttpOnly em toda requisição feita para o backend
+  withCredentials: true,
 });
 
-api.interceptors.request.use(
-  async (config) => {
-    if (keycloak.authenticated) {
-      try {
-        // Se o token expirar em menos de 30 segundos, faz o refresh ativo antes de bater na API
-        await keycloak.updateToken(30);
-
-        // Injeta o token (novo ou o atual válido) no header
-        config.headers.Authorization = `Bearer ${keycloak.token}`;
-      } catch (error) {
-        console.error("Falha na renovação do token. Sessão expirada.");
-        // Se o refresh token também expirou (ex: usuário ficou dias fora), limpa e força o login
-        keycloak.clearToken();
-        keycloak.login();
-      }
+// A REDE DE SEGURANÇA (Opcional, mas altamente recomendada):
+// Se o usuário ficar horas fora da tela e o cookie expirar lá no Backend,
+// o Node.js vai devolver um erro 401. Esse interceptor pega o erro e manda pro Login automático.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.warn(
+        "Sessão expirada. Redirecionando para autenticação segura...",
+      );
+      window.location.href = "http://localhost:3000/api/auth/login";
     }
-    return config;
+    return Promise.reject(error);
   },
-  (error) => Promise.reject(error),
 );
 
 export default api;

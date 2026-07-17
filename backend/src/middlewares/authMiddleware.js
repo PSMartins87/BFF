@@ -1,40 +1,43 @@
-const { jwtVerify } = require("jose");
-const jwksClient = require("../config/keycloak");
+const { getClient } = require('../config/oidc');
+const { decodeJwt } = require('jose'); // Importamos a função para ler o token
 const logger = require("../config/logger");
 
 const authenticate = async (req, res, next) => {
-  // A TRAVA: Se for uma requisição de preflight (OPTIONS), deixa passar direto.
-  // Quem vai cuidar disso é o middleware de CORS.
-  if (req.method === "OPTIONS") {
-    return next();
-  }
+  if (req.method === "OPTIONS") return next();
 
   try {
-    const authHeader = req.headers.authorization;
-    
-
-    // 1. Validação de Presença: Se não tem header ou não começa com Bearer, bloqueia (401)
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Unauthorized",
-        message: "Token ausente ou mal formatado.",
-      });
+    // 1. O cofre do Redis está vazio?
+    if (!req.session || !req.session.tokenSet) {
+      return res.status(401).json({ message: "Sessão inválida ou expirada." });
     }
 
-    const token = authHeader.split(" ")[1];
+    let { tokenSet } = req.session;
+    const client = getClient();
 
-    // 2. Validação Criptográfica: Tenta decodificar usando as chaves do Keycloak
-    const { payload } = await jwtVerify(token, jwksClient);
+    // 2. O access_token está expirado?
+    if (Date.now() >= tokenSet.expires_at * 1000) {
+      logger.info("Access token expirado. Iniciando Refresh silencioso...");
+      
+      try {
+        const newTokenSet = await client.refresh(tokenSet.refresh_token);
+        req.session.tokenSet = newTokenSet;
+        tokenSet = newTokenSet; 
+        logger.info("Refresh token realizado com sucesso!");
+      } catch (refreshErr) {
+        logger.warn("O Refresh Token expirou. Forçando novo login.");
+        req.session.destroy();
+        return res.status(401).json({ message: "Sessão totalmente expirada." });
+      }
+    }
 
-    // 3. Sucesso: Injeta os dados no request e prossegue
-    req.user = payload;
+    // 3. Sucesso! Decodificamos o token e passamos os dados (roles, email, etc) para a rota
+    // Não precisamos usar jwtVerify porque a biblioteca openid-client JÁ validou a criptografia na origem.
+    req.user = decodeJwt(tokenSet.access_token); 
+    
     next();
   } catch (error) {
-    // 4. Captura Graciosa: Qualquer erro de validação (expirado, inválido, mal formado) vira um 401.
-    logger.warn(`Falha na autenticação JWT: ${error.message}`);
-    return res
-      .status(401)
-      .json({ error: "Unauthorized", message: "Token inválido ou expirado." });
+    logger.error(`Erro no middleware de auth: ${error.message}`);
+    return res.status(500).json({ message: "Erro interno de autenticação." });
   }
 };
 

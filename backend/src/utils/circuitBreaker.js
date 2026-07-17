@@ -1,13 +1,6 @@
 const CircuitBreaker = require("opossum");
 const logger = require("../config/logger");
 
-/**
- * Cria uma instância do Circuit Breaker para uma função assíncrona.
- *
- * @param {Function} asyncFunction Função que consome a API externa
- * @param {any} fallbackValue Valor retornado caso a API falhe ou demore muito
- * @param {string} serviceName Nome do serviço para facilitar a leitura nos logs
- */
 const createBreaker = (
   asyncFunction,
   fallbackValue,

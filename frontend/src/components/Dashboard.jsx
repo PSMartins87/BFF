@@ -1,9 +1,7 @@
 import React from "react";
-import { useKeycloak } from "@react-keycloak/web";
 import { useMacroEconomics } from "../hooks/useMacro";
 
 const Dashboard = () => {
-  const { keycloak } = useKeycloak();
   const { data: macro, isLoading, isError, refetch } = useMacroEconomics();
 
   if (isLoading) {
@@ -19,6 +17,11 @@ const Dashboard = () => {
     );
   }
 
+  const handleLogout = () => {
+    // Redireciona para o Backend, que fará a destruição do Cookie e da sessão
+    window.location.href = "http://localhost:3000/api/auth/logout";
+  };
+
   return (
     <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
       <header
@@ -28,11 +31,11 @@ const Dashboard = () => {
           alignItems: "center",
         }}
       >
-        <h2>{macro?.summary || "Cenário Macroeconômico"}</h2>
+        <h2 style={{ color: "white" }}>{macro?.summary || "Cenário Macroeconômico"}</h2>
 
-        {/* Botão de Logout seguro */}
+        {/* Botão de Logout enviando para o Node.js */}
         <button
-          onClick={() => keycloak.logout()}
+          onClick={handleLogout}
           style={{
             padding: "8px 16px",
             background: "#dc3545",
@@ -63,19 +66,20 @@ const Card = ({ title, value }) => (
   <div
     style={{
       padding: "20px",
-      border: "1px solid #ddd",
+      border: "1px solid #333", // Ajustado levemente para o modo escuro
+      backgroundColor: "#222",
       borderRadius: "8px",
       minWidth: "150px",
       boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
     }}
   >
-    <h4 style={{ margin: "0 0 10px 0", color: "#555" }}>{title}</h4>
+    <h4 style={{ margin: "0 0 10px 0", color: "#aaa" }}>{title}</h4>
     <p
       style={{
         fontSize: "24px",
         fontWeight: "bold",
         margin: 0,
-        color: "#007bff",
+        color: "#60a5fa",
       }}
     >
       {value !== "null%" && value !== "R$ null" ? value : "Indisponível"}

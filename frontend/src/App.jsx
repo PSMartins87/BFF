@@ -1,52 +1,62 @@
-import React from "react";
-import { ReactKeycloakProvider } from "@react-keycloak/web";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useKeycloak } from "@react-keycloak/web";
-import keycloak from "./config/keycloak";
+import axios from "axios";
 import Dashboard from "./components/Dashboard";
-import StockComparator from './components/StockComparator'; // A sua importação aqui!
+import StockComparator from "./components/StockComparator";
 
 const queryClient = new QueryClient();
 
-const keycloakInitOptions = {
-  onLoad: "login-required",
-  pkceMethod: "S256",
-  checkLoginIframe: false,
-  flow: "standard",
-};
+// OBRIGATÓRIO: Garante que todos os axios.get enviem os cookies silenciosamente
+axios.defaults.withCredentials = true;
 
-// Componente Wrapper para gerenciar a tela de Loading da Autenticação
-const AppRouter = () => {
-  const { initialized, keycloak } = useKeycloak();
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  if (!initialized) {
+  useEffect(() => {
+    // Pergunta pro backend se a gente tem um cookie válido
+    axios
+      .get("http://localhost:3000/api/auth/me")
+      .then(() => setIsAuthenticated(true))
+      .catch(() => setIsAuthenticated(false));
+  }, []);
+
+  if (isAuthenticated === null) {
     return (
-      <div style={{ padding: "20px", color: "white" }}>Negociando chaves de segurança...</div>
+      <div style={{ padding: "20px", color: "white" }}>
+        Verificando sessão...
+      </div>
     );
   }
 
-  // Como usamos 'login-required', se passar do initialized, o usuário tem token
-  return (
-    <div style={{ padding: "10px" }}>
-      {/* O Painel Macroeconômico (Bacen) */}
-      <Dashboard />
-      
-      {/* O nosso novo Comparador de Ações recebendo a chave do Keycloak */}
-      <StockComparator token={keycloak.token} />
-    </div>
-  );
-};
+  if (!isAuthenticated) {
+    return (
+      <div style={{ padding: "50px", textAlign: "center" }}>
+        <h1 style={{ color: "white" }}>Bem-vindo ao Sistema</h1>
+        {/* O botão não usa React-Router, ele manda o navegador direto pro Node.js */}
+        <a
+          href="http://localhost:3000/api/auth/login"
+          style={{
+            padding: "10px 20px",
+            background: "#3b82f6",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "5px",
+          }}
+        >
+          Fazer Login com Segurança
+        </a>
+      </div>
+    );
+  }
 
-function App() {
   return (
-    <ReactKeycloakProvider
-      authClient={keycloak}
-      initOptions={keycloakInitOptions}
-    >
-      <QueryClientProvider client={queryClient}>
-        <AppRouter />
-      </QueryClientProvider>
-    </ReactKeycloakProvider>
+    <QueryClientProvider client={queryClient}>
+      <div style={{ padding: "10px" }}>
+        <Dashboard />
+        {/* Note que nem passamos mais o 'token' via prop, o Axios cuida de tudo com o cookie! */}
+        <StockComparator />
+      </div>
+    </QueryClientProvider>
   );
 }
 
