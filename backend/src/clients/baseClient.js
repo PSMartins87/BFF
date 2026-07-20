@@ -1,13 +1,16 @@
 const axios = require("axios");
+const http = require("http");
+const https = require("https");
 const logger = require("../config/logger");
 
 const createClient = (baseURL, defaultTimeout = 5000) => {
   const client = axios.create({
     baseURL,
     timeout: defaultTimeout,
+    httpAgent: new http.Agent({ keepAlive: true }),
+    httpsAgent: new https.Agent({ keepAlive: true, rejectUnauthorized: false }),
   });
 
-  // Interceptor de Requisição (Registra o início)
   client.interceptors.request.use((config) => {
     config.metadata = { startTime: Date.now() };
     logger.debug(
@@ -16,7 +19,6 @@ const createClient = (baseURL, defaultTimeout = 5000) => {
     return config;
   });
 
-  // Interceptor de Resposta (Calcula o tempo e loga o sucesso/falha)
   client.interceptors.response.use(
     (response) => {
       const duration = Date.now() - response.config.metadata.startTime;
@@ -35,8 +37,6 @@ const createClient = (baseURL, defaultTimeout = 5000) => {
       logger.error(
         `[${error.config?.method.toUpperCase()}] ${url} - Falha: ${status} (${duration}ms) - ${error.message}`,
       );
-
-      // Rejeita a promise padronizando o erro para a camada de Service
       return Promise.reject(error);
     },
   );

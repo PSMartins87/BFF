@@ -8,20 +8,11 @@ const router = express.Router();
 
 router.use(authenticate);
 
-// 1. Rota de Comparação (Estática) VEM ANTES
 router.get(
-  "/compare",
+  "/market",
   checkRole("investimentos.investidor"),
   cacheMiddleware(60),
-  assetController.compareAssets,
-);
-
-// 2. Rota de Consulta Individual (Dinâmica) VEM DEPOIS
-router.get(
-  "/:ticker",
-  checkRole("investimentos.investidor"),
-  cacheMiddleware(60),
-  assetController.getAsset,
+  assetController.getMarketData,
 );
 
 module.exports = router;

@@ -1,4 +1,3 @@
-// Importa o logger global no topo do arquivo
 const logger = require("../config/logger");
 
 const checkRole = (requiredRole) => {
@@ -8,11 +7,10 @@ const checkRole = (requiredRole) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const clientId = process.env.KEYCLOAK_CLIENT_ID; // 'investimentos'
+    const clientId = process.env.KEYCLOAK_CLIENT_ID;
     const clientRoles = req.user.resource_access?.[clientId]?.roles || [];
 
     if (!clientRoles.includes(requiredRole)) {
-      // Usando a instância global do logger em vez do req.log
       logger.warn(
         `Acesso negado (Forbidden). Usuário tentou acessar sem a Client Role: ${requiredRole}`,
       );

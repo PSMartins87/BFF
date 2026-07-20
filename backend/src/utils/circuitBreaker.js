@@ -14,7 +14,6 @@ const createBreaker = (
 
   const breaker = new CircuitBreaker(asyncFunction, options);
 
-  // Se falhar, retorna o valor padrão em vez de quebrar a requisição
   breaker.fallback((ticker, error) => {
     logger.warn(
       `Fallback acionado para ${serviceName} (Ativo: ${ticker}). Motivo: ${error.message}`,
@@ -22,7 +21,6 @@ const createBreaker = (
     return fallbackValue;
   });
 
-  // Observabilidade (Logs de estado do circuito)
   breaker.on("open", () =>
     logger.error(
       `[CIRCUIT BREAKER] ABERTO para ${serviceName}. Requisições suspensas.`,

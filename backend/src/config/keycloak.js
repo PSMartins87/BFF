@@ -9,12 +9,10 @@ if (!KEYCLOAK_URL || !REALM) {
   process.exit(1);
 }
 
-// Monta a URL padrão do OpenID Connect onde ficam as chaves públicas
 const jwksUri = new URL(
   `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/certs`,
 );
 
-// Cria um cliente que fará o fetch e o cache automático das chaves
 const jwksClient = createRemoteJWKSet(jwksUri);
 
 module.exports = jwksClient;

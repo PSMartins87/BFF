@@ -1,47 +1,103 @@
 const finnhubClient = require("../clients/finnhubClient");
-const newsClient = require("../clients/newsClient");
-const createBreaker = require("../utils/circuitBreaker");
 const logger = require("../config/logger");
 
-// Protegendo a API de notícias com Circuit Breaker (Fallback: Array vazio)
-const newsBreaker = createBreaker(newsClient.getNewsByTicker, [], "NewsAPI");
+const getMarketOverview = async () => {
+  logger.info(
+    "Iniciando orquestração do panorama de mercado (Market Overview)...",
+  );
 
+  const topAtivos = [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "TSLA",
+    "NVDA",
+    "META",
+    "NFLX",
+  ];
+
+  const quotesPromises = topAtivos.map(async (symbol) => {
+    const [quoteData, metricData] = await Promise.all([
+      finnhubClient.getQuote(symbol).catch(() => ({})),
+      finnhubClient.getMetrics(symbol).catch(() => ({})),
+    ]);
+
+    return {
+      symbol: symbol,
+      price: quoteData?.c || 0,
+      change: quoteData?.dp || 0,
+      high52: metricData?.metric?.["52WeekHigh"] || null,
+      low52: metricData?.metric?.["52WeekLow"] || null,
+      beta: metricData?.metric?.["beta"] || null,
+    };
+  });
+
+  const exchanges = [
+    { code: "US", name: "Nova York (EUA)" },
+    { code: "L", name: "Londres (UK)" },
+    { code: "T", name: "Tóquio (JP)" },
+    { code: "HK", name: "Hong Kong (HK)" },
+  ];
+
+  const marketStatusPromises = exchanges.map(async (ex) => {
+    try {
+      const status = await finnhubClient.getMarketStatus(ex.code);
+      return { ...status, displayName: ex.name };
+    } catch (err) {
+      logger.warn(`Falha ao buscar status da bolsa ${ex.code}: ${err.message}`);
+      return {
+        isOpen: false,
+        session: "Desconhecida",
+        displayName: ex.name,
+      };
+    }
+  });
+
+  const [quotesData, newsData, marketStatuses] = await Promise.all([
+    Promise.all(quotesPromises),
+    finnhubClient.getMarketNews().catch(() => []),
+    Promise.all(marketStatusPromises),
+  ]);
+
+  return {
+    stocks: quotesData,
+    news: Array.isArray(newsData) ? newsData.slice(0, 5) : [],
+    marketStatuses: marketStatuses,
+  };
+};
+
+/**
+ * Busca detalhes de um único ativo (Mantida e limpa, caso você tenha uma rota de Detalhes).
+ * Se não for usar mais no seu projeto, pode apagar sem medo!
+ */
 const getAssetDetails = async (ticker) => {
   const upperTicker = ticker.toUpperCase();
   logger.info(`Iniciando orquestração de dados para o ativo: ${upperTicker}`);
 
-  // Disparamos todas as requisições simultaneamente
-  const [quote, profile, trends, news] = await Promise.all([
-    // Se a cotação falhar, retornamos um objeto vazio para não quebrar o Promise.all
+  const [quote, profile, trends] = await Promise.all([
     finnhubClient.getQuote(upperTicker).catch((err) => {
       logger.error(`Erro ao buscar cotação de ${upperTicker}: ${err.message}`);
       return {};
     }),
-
     finnhubClient.getProfile(upperTicker).catch((err) => {
       logger.error(`Erro ao buscar perfil de ${upperTicker}: ${err.message}`);
       return {};
     }),
-
     finnhubClient.getTrends(upperTicker).catch((err) => {
       logger.error(
         `Erro ao buscar tendências de ${upperTicker}: ${err.message}`,
       );
       return [];
     }),
-
-    // O Circuit Breaker já encapsula o catch() internamente
-    newsBreaker.fire(upperTicker),
   ]);
 
-  // Se não veio preço atual (c), o ativo provavelmente não existe ou a API primária caiu
   if (quote.c === undefined || quote.c === null || quote.c === 0) {
     throw new Error(
       `Ativo ${upperTicker} não encontrado ou sem dados de cotação no momento.`,
     );
   }
 
-  // Transformação (Mapper): Convertendo os payloads externos para o nosso contrato corporativo
   const recommendation =
     trends && trends.length > 0
       ? trends[0].strongBuy > trends[0].sell
@@ -52,10 +108,10 @@ const getAssetDetails = async (ticker) => {
   return {
     ticker: upperTicker,
     financials: {
-      currentPrice: quote.c, // Preço atual
-      changePercent: quote.dp, // Variação em %
-      highOfDay: quote.h, // Máxima do dia
-      lowOfDay: quote.l, // Mínima do dia
+      currentPrice: quote.c,
+      changePercent: quote.dp,
+      highOfDay: quote.h,
+      lowOfDay: quote.l,
     },
     company: {
       name: profile.name || upperTicker,
@@ -64,51 +120,11 @@ const getAssetDetails = async (ticker) => {
       currency: profile.currency || "BRL",
     },
     recommendation: recommendation,
-    recentNews: news, // Array de notícias (pode vir vazio se o Circuit Breaker abrir)
+    recentNews: [],
   };
 };
 
-/**
- * Compara múltiplos ativos. Se um ativo falhar, ele retorna um objeto de erro
- * para aquele ativo específico, preservando os demais (Partial Response).
- */
-const compareAssets = async (tickers) => {
-  logger.info(`Iniciando comparação para os ativos: ${tickers.join(", ")}`);
-
-  // Promise.allSettled executa tudo em paralelo e não quebra se um falhar
-  const results = await Promise.allSettled(
-    tickers.map((ticker) => getAssetDetails(ticker)),
-  );
-
-  // Mapeamos os resultados para o contrato esperado pelo frontend
-  const comparisons = results.map((result, index) => {
-    if (result.status === "fulfilled") {
-      const data = result.value;
-      return {
-        ticker: data.ticker,
-        price: data.financials.currentPrice,
-        variationPercent: data.financials.changePercent,
-        recommendation: data.recommendation,
-        sector: data.company.sector,
-        marketCap: data.company.marketCap,
-      };
-    } else {
-      // Falha isolada em um ativo específico
-      logger.warn(
-        `Falha ao buscar dados para comparação do ativo: ${tickers[index]}. Motivo: ${result.reason.message}`,
-      );
-      return {
-        ticker: tickers[index].toUpperCase(),
-        error: "Não foi possível obter dados para este ativo no momento.",
-      };
-    }
-  });
-
-  return comparisons;
-};
-
-// Não esqueça de exportar a nova função!
 module.exports = {
+  getMarketOverview,
   getAssetDetails,
-  compareAssets,
 };

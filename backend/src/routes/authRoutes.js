@@ -12,25 +12,27 @@ router.get("/callback", async (req, res) => {
   try {
     const client = getClient();
     const params = client.callbackParams(req);
-
-    // Troca o código pelos Tokens
     const tokenSet = await client.callback(
       "http://localhost:3000/api/auth/callback",
       params,
+      { session_state: req.query.session_state },
     );
-
-    // MÁGICA AQUI: Salva os tokens no cofre do Redis, atrelado à sessão do usuário!
     req.session.tokenSet = tokenSet;
 
-    res.redirect("http://localhost:5173");
+    req.session.save((err) => {
+      if (err) throw new Error("Falha ao gravar sessão no Redis.");
+      res.redirect("http://localhost:5173");
+    });
   } catch (err) {
-    console.error("Erro no callback do Keycloak:", err);
-    res.status(500).send("Falha na autenticação.");
+    console.error("[AUTH CALLBACK ERRO Crítico]:", err.message);
+    req.session.destroy(() => {
+      res.clearCookie("sessionId");
+      res.redirect("http://localhost:5173/login?error=callback_failed");
+    });
   }
 });
 
 router.get("/me", (req, res) => {
-  // O React só pergunta: "Minha sessão no Redis tem um token?"
   if (req.session && req.session.tokenSet) {
     res.json({ authenticated: true });
   } else {
@@ -38,19 +40,17 @@ router.get("/me", (req, res) => {
   }
 });
 
-// A ROTA DE LOGOUT OFICIAL
 router.get("/logout", async (req, res) => {
-  if (req.session.tokenSet) {
+  if (req.session && req.session.tokenSet) {
     const client = getClient();
     const logoutUrl = client.endSessionUrl({
       id_token_hint: req.session.tokenSet.id_token,
       post_logout_redirect_uri: "http://localhost:5173",
     });
 
-    req.session.destroy(); // Destrói o cofre no Redis
-    res.clearCookie("sessionId"); // Apaga o crachá do navegador
-
-    res.redirect(logoutUrl); // Desloga lá no Keycloak também
+    req.session.destroy();
+    res.clearCookie("sessionId");
+    res.redirect(logoutUrl);
   } else {
     res.redirect("http://localhost:5173");
   }

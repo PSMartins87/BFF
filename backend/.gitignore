@@ -1,0 +1,49 @@
+# Dependências
+node_modules/
+package-lock.json
+# (Opcional) Descomente a linha acima apenas se você usar yarn ao invés de npm e quiser ignorar o lock do npm. 
+# Geralmente, o package-lock.json DEVE ir para o repositório, mas a pasta node_modules NUNCA deve ir.
+
+# Variáveis de Ambiente e Segredos (MUITO IMPORTANTE)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+
+# Logs do Node e da Aplicação
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Arquivos de Sistema Operacional (Mac/Windows)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Cobertura de Testes (Se for usar Jest/Mocha no futuro)
+coverage/
+.nyc_output/
+
+# Arquivos de Build/Cache
+dist/
+build/
+.cache/
+
+# Arquivos de Editores e IDEs (VS Code, IntelliJ, etc)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

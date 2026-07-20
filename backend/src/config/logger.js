@@ -12,7 +12,7 @@ const logger = pino({
           translateTime: "SYS:standard",
         },
       }
-    : undefined, // Em produção, gera JSON puro
+    : undefined,
 });
 
 module.exports = logger;
