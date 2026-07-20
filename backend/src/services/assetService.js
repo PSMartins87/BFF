@@ -67,10 +67,6 @@ const getMarketOverview = async () => {
   };
 };
 
-/**
- * Busca detalhes de um único ativo (Mantida e limpa, caso você tenha uma rota de Detalhes).
- * Se não for usar mais no seu projeto, pode apagar sem medo!
- */
 const getAssetDetails = async (ticker) => {
   const upperTicker = ticker.toUpperCase();
   logger.info(`Iniciando orquestração de dados para o ativo: ${upperTicker}`);
