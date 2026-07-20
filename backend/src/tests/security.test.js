@@ -1,4 +1,3 @@
-// Mock do jose atualizado com as duas funções que a nossa API usa
 jest.mock("jose", () => ({
   jwtVerify: jest.fn(),
   createRemoteJWKSet: jest.fn(),
