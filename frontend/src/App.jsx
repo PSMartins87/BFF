@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import axios from "axios";
 import Dashboard from "./components/Dashboard";
-import MarketOverview from "./components/MarketOverview"; // A importação nova está perfeita aqui!
+import MarketOverview from "./components/MarketOverview";
 const queryClient = new QueryClient();
 
 axios.defaults.withCredentials = true;
